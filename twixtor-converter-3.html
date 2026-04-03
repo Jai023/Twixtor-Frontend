@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TWIXTOR · Slow Motion Engine</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+:root{--bg:#080a0f;--surface:#0e1118;--surface2:#141820;--border:#1e2535;--accent:#00e5ff;--accent2:#7b2fff;--glow:rgba(0,229,255,.15);--warn:#ff6b35;--ok:#00ff88;--text:#e8edf5;--dim:#5a6478;--mid:#8a96b0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:20px 16px 60px}
+
+/* header */
+.hdr{text-align:center;margin-bottom:28px;padding-top:12px}
+.badge{display:inline-block;font-size:10px;letter-spacing:3px;color:var(--accent);border:1px solid rgba(0,229,255,.3);padding:4px 12px;border-radius:2px;margin-bottom:12px;text-transform:uppercase}
+.hdr h1{font-family:'Syne',sans-serif;font-size:clamp(34px,9vw,50px);font-weight:800;letter-spacing:-2px;line-height:1;background:linear-gradient(135deg,#fff 0%,var(--accent) 50%,var(--accent2) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px}
+.hdr p{font-size:10px;color:var(--dim);letter-spacing:1px;line-height:1.7}
+
+/* ── ENGINE STATUS BAR ── */
+#engbar{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;transition:border-color .4s}
+#engbar.loading{border-color:rgba(0,229,255,.3);animation:pulse 1.6s ease-in-out infinite}
+#engbar.ok{border-color:rgba(0,255,136,.4)}
+#engbar.err{border-color:rgba(255,107,53,.4)}
+@keyframes pulse{0%,100%{border-color:rgba(0,229,255,.2)}50%{border-color:rgba(0,229,255,.6)}}
+#engdot{width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--dim);transition:background .4s}
+#engbar.loading #engdot{background:var(--accent);animation:blink 1s ease-in-out infinite}
+#engbar.ok #engdot{background:var(--ok);animation:none}
+#engbar.err #engdot{background:var(--warn);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#engtxt{flex:1;font-size:11px;color:var(--mid);line-height:1.5}
+#engtxt strong{display:block;font-size:12px;color:var(--text);margin-bottom:2px}
+#retrybtn{display:none;background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.4);border-radius:6px;color:var(--warn);font-family:'Space Mono',monospace;font-size:10px;padding:6px 12px;cursor:pointer;white-space:nowrap;transition:all .2s}
+#retrybtn:hover{background:rgba(255,107,53,.22)}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.4),transparent);opacity:0;transition:opacity .3s}
+.card:hover::before{opacity:1}
+.clabel{font-size:9px;letter-spacing:2.5px;color:var(--accent);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.clabel::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* warning */
+.banner{border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start;font-size:11px;line-height:1.7}
+.banner.warn{background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.25);color:#ff9a70}
+.banner.warn strong{color:var(--warn);display:block;margin-bottom:2px;font-size:11px}
+.bico{font-size:16px;flex-shrink:0;margin-top:1px}
+
+/* drop zone */
+.dropzone{border:2px dashed var(--border);border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .25s;position:relative;background:rgba(0,0,0,.2)}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--glow)}
+.dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dico{font-size:28px;margin-bottom:10px;display:block}
+.dtitle{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+.dsub{font-size:10px;color:var(--dim);letter-spacing:.5px;line-height:1.6}
+
+/* file preview */
+#fprev{display:none;margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--mid);align-items:center;gap:10px}
+#fprev.on{display:flex}
+#fprev .fn{color:var(--text);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;margin-bottom:2px}
+#vprev{display:none;margin-top:12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#000}
+#vprev video{width:100%;display:block;max-height:200px;object-fit:contain}
+
+/* settings */
+.srow{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+.srow:last-child{border-bottom:none}
+.slabel{font-size:11px;color:var(--mid)}
+.sval{font-size:11px;color:var(--accent);font-weight:700;background:rgba(0,229,255,.08);padding:3px 10px;border-radius:4px;border:1px solid rgba(0,229,255,.2)}
+.selwrap{position:relative}
+select{appearance:none;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:11px;padding:5px 26px 5px 10px;border-radius:6px;cursor:pointer;outline:none;transition:border-color .2s}
+select:focus{border-color:var(--accent)}
+.selwrap::after{content:'▾';position:absolute;right:8px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:10px;pointer-events:none}
+
+/* ── GENERATE BUTTON ── */
+#gobtn{width:100%;padding:18px;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:17px;font-weight:800;letter-spacing:1px;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px;position:relative;overflow:hidden}
+/* state: loading engine */
+#gobtn.state-loading{background:var(--surface);border:2px solid rgba(0,229,255,.25);color:var(--dim);cursor:not-allowed}
+/* state: waiting for file */
+#gobtn.state-nofile{background:var(--surface);border:2px dashed rgba(0,229,255,.3);color:var(--mid);cursor:not-allowed}
+/* state: ready */
+#gobtn.state-ready{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;cursor:pointer;box-shadow:0 0 28px rgba(0,229,255,.25)}
+#gobtn.state-ready:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(0,229,255,.4)}
+/* state: running */
+#gobtn.state-running{background:var(--surface2);border:2px solid var(--accent);color:var(--accent);cursor:not-allowed}
+.spin{display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* progress */
+#progsec{display:none;margin-bottom:14px}
+.phdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.plabel{font-size:10px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase}
+#ppct{font-size:13px;font-weight:700;color:var(--accent)}
+.ptrack{height:6px;background:var(--surface2);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
+#pfill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:99px;transition:width .5s ease;box-shadow:0 0 10px var(--accent)}
+#slog{margin-top:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:10px;color:var(--dim);line-height:1.9;max-height:120px;overflow-y:auto}
+#slog .ll{color:var(--mid)}
+#slog .ll.a{color:var(--accent)}
+#slog .ll.ok{color:var(--ok)}
+#slog .ll.er{color:var(--warn)}
+
+/* download */
+#dlsec{display:none;margin-bottom:14px}
+#dlbtn{width:100%;padding:16px;background:rgba(0,255,136,.06);border:2px solid var(--ok);border-radius:10px;color:var(--ok);font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:1px;cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;box-shadow:0 0 20px rgba(0,255,136,.1)}
+#dlbtn:hover{background:rgba(0,255,136,.12);box-shadow:0 0 32px rgba(0,255,136,.25);transform:translateY(-2px)}
+#rstbtn{display:none;width:100%;margin-top:10px;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--dim);font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;transition:all .2s}
+#rstbtn.on{display:block}
+#rstbtn:hover{border-color:var(--mid);color:var(--text)}
+
+/* offline note */
+details.note{margin-top:20px;border-top:1px solid var(--border);padding-top:16px}
+details.note summary{font-size:10px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;cursor:pointer;user-select:none;padding:4px 0}
+.notebody{margin-top:12px;font-size:11px;color:var(--mid);line-height:1.9;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px}
+.notebody code{color:var(--accent);background:rgba(0,229,255,.06);padding:2px 5px;border-radius:4px;font-size:10px;word-break:break-all}
+.notebody ol{padding-left:16px;margin-top:8px}
+.notebody li{margin-bottom:8px}
+.footer{text-align:center;margin-top:28px;font-size:9px;color:var(--dim);letter-spacing:1.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="badge">Motion Interpolation Engine</div>
+    <h1>TWIXTOR</h1>
+    <p>minterpolate · MCI+AOBMC · Bidirectional ME · FFmpeg.wasm</p>
+  </div>
+
+  <!-- ENGINE STATUS BAR -->
+  <div id="engbar" class="loading">
+    <div id="engdot"></div>
+    <div id="engtxt">
+      <strong id="engtitle">Loading FFmpeg Engine…</strong>
+      <span id="engmsg">Downloading WASM core (~5 MB). Please wait.</span>
+    </div>
+    <button id="retrybtn" onclick="loadFFmpeg()">↺ Retry</button>
+  </div>
+
+  <!-- Memory advisory -->
+  <div class="banner warn">
+    <div class="bico">⚡</div>
+    <div><strong>Mobile Memory Advisory</strong>Use clips of <strong>1–3 seconds</strong> only. MCI interpolation is RAM-intensive — longer clips will crash the tab. Trim before uploading.</div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <div class="clabel">01 · Source Video</div>
+    <div class="dropzone" id="dz">
+      <input type="file" id="fi" accept="video/*">
+      <span class="dico">🎬</span>
+      <div class="dtitle">Tap to select video</div>
+      <div class="dsub">MP4 · MOV · WebM · AVI — keep under 3 seconds</div>
+    </div>
+    <div id="fprev">
+      <div style="font-size:20px;flex-shrink:0">🎞</div>
+      <div style="flex:1;overflow:hidden">
+        <div class="fn" id="fname">—</div>
+        <div id="fsize" style="font-size:10px">—</div>
+      </div>
+    </div>
+    <div id="vprev"><video id="vsrc" controls muted playsinline></video></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="clabel">02 · Interpolation Settings</div>
+    <div class="srow"><span class="slabel">Algorithm</span><span class="sval">MCI · AOBMC</span></div>
+    <div class="srow"><span class="slabel">Motion Estimation</span><span class="sval">Bidirectional</span></div>
+    <div class="srow">
+      <span class="slabel">Output Framerate</span>
+      <div class="selwrap">
+        <select id="fps">
+          <option value="60" selected>60 fps</option>
+          <option value="120">120 fps</option>
+          <option value="240">240 fps</option>
+          <option value="48">48 fps</option>
+        </select>
+      </div>
+    </div>
+    <div class="srow">
+      <span class="slabel">Slowdown Factor</span>
+      <div class="selwrap">
+        <select id="spd">
+          <option value="1.0" selected>None (interp only)</option>
+          <option value="0.5">0.5× half speed</option>
+          <option value="0.25">0.25× quarter speed</option>
+          <option value="0.1">0.1× cinematic crawl</option>
+        </select>
+      </div>
+    </div>
+    <div class="srow"><span class="slabel">Output Format</span><span class="sval">MP4 · H.264</span></div>
+  </div>
+
+  <!-- Progress (hidden until running) -->
+  <div class="card" id="progsec">
+    <div class="clabel">03 · Processing</div>
+    <div class="phdr">
+      <span class="plabel">Interpolating frames…</span>
+      <span id="ppct">0%</span>
+    </div>
+    <div class="ptrack"><div id="pfill"></div></div>
+    <div id="slog"><div class="ll a">Starting…</div></div>
+  </div>
+
+  <!-- Generate button -->
+  <button id="gobtn" class="state-loading">
+    <span id="gobtn-icon" class="spin">⟳</span>
+    <span id="gobtn-label">Loading Engine…</span>
+  </button>
+
+  <!-- Download (hidden until done) -->
+  <div id="dlsec">
+    <a id="dlbtn" href="#" download="twixtor_slowmo.mp4">⬇ DOWNLOAD RESULT</a>
+    <button id="rstbtn">↩ Process another clip</button>
+  </div>
+
+  <!-- Offline note -->
+  <details class="note">
+    <summary>▸ Offline / self-hosting usage note</summary>
+    <div class="notebody">
+      This page loads FFmpeg.wasm from CDN on first use. For <strong>100% offline</strong>:<br><br>
+      <ol>
+        <li>Download these 4 files next to the HTML:<br>
+          <code>https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js</code><br>
+          <code>https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js</code><br>
+          <code>https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js</code><br>
+          <code>https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm</code>
+        </li>
+        <li>Edit the 4 URL constants at the top of the script to local paths.</li>
+        <li>Serve with <code>npx serve .</code> — HTTPS/localhost required for SharedArrayBuffer.</li>
+      </ol>
+    </div>
+  </details>
+
+  <div class="footer">TWIXTOR ENGINE · CLIENT-SIDE ONLY · NO DATA LEAVES YOUR DEVICE</div>
+</div>
+
+<script type="module">
+// ── CDN (swap to local paths for offline use) ────────────────────────────────
+const U_FFMPEG = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+const U_UTIL   = 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+const U_CORE   = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js';
+const U_WASM   = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm';
+
+// ── State ────────────────────────────────────────────────────────────────────
+let ffmpeg, fetchFile, toBlobURL;
+let engineReady = false;
+let fileReady   = false;
+let running     = false;
+let file        = null;
+let outURL      = null;
+
+// ── DOM ──────────────────────────────────────────────────────────────────────
+const engbar   = document.getElementById('engbar');
+const engdot   = document.getElementById('engdot');
+const engtitle = document.getElementById('engtitle');
+const engmsg   = document.getElementById('engmsg');
+const retrybtn = document.getElementById('retrybtn');
+const dz       = document.getElementById('dz');
+const fi       = document.getElementById('fi');
+const fprev    = document.getElementById('fprev');
+const fname    = document.getElementById('fname');
+const fsize    = document.getElementById('fsize');
+const vprev    = document.getElementById('vprev');
+const vsrc     = document.getElementById('vsrc');
+const gobtn    = document.getElementById('gobtn');
+const gobtnIco = document.getElementById('gobtn-icon');
+const gobtnLbl = document.getElementById('gobtn-label');
+const progsec  = document.getElementById('progsec');
+const pfill    = document.getElementById('pfill');
+const ppct     = document.getElementById('ppct');
+const slog     = document.getElementById('slog');
+const dlsec    = document.getElementById('dlsec');
+const dlbtn    = document.getElementById('dlbtn');
+const rstbtn   = document.getElementById('rstbtn');
+
+// ── Button state machine ──────────────────────────────────────────────────────
+function syncBtn() {
+  if (running) {
+    gobtn.className = 'state-running';
+    gobtnIco.className = 'spin';
+    gobtnIco.textContent = '⟳';
+    gobtnLbl.textContent = 'Processing…';
+    gobtn.disabled = true;
+    return;
+  }
+  if (!engineReady) {
+    gobtn.className = 'state-loading';
+    gobtnIco.className = 'spin';
+    gobtnIco.textContent = '⟳';
+    gobtnLbl.textContent = 'Loading Engine…';
+    gobtn.disabled = true;
+    return;
+  }
+  if (!fileReady) {
+    gobtn.className = 'state-nofile';
+    gobtnIco.className = '';
+    gobtnIco.textContent = '📂';
+    gobtnLbl.textContent = 'Select a Video First';
+    gobtn.disabled = true;
+    return;
+  }
+  // All good — active
+  gobtn.className = 'state-ready';
+  gobtnIco.className = '';
+  gobtnIco.textContent = '⚡';
+  gobtnLbl.textContent = 'GENERATE SLOW-MO';
+  gobtn.disabled = false;
+}
+
+// ── Engine status bar ─────────────────────────────────────────────────────────
+function setEngineState(state, title, msg) {
+  engbar.className = state; // 'loading' | 'ok' | 'err'
+  engtitle.textContent = title;
+  engmsg.textContent   = msg;
+  retrybtn.style.display = state === 'err' ? 'block' : 'none';
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const fmtB = b => b < 1024 ? b+' B' : b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
+
+function log(msg, cls='') {
+  const last = slog.lastElementChild;
+  if (last && last.textContent === '» '+msg) return;
+  const d = document.createElement('div');
+  d.className = 'll'+(cls?' '+cls:'');
+  d.textContent = '» '+msg;
+  slog.appendChild(d);
+  slog.scrollTop = slog.scrollHeight;
+}
+
+function prog(pct, msg) {
+  pfill.style.width = Math.round(pct)+'%';
+  ppct.textContent  = Math.round(pct)+'%';
+  if (msg) log(msg, pct>=100?'ok':'a');
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+dz.addEventListener('drop', e=>{
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video/')) setFile(f);
+});
+fi.addEventListener('change', ()=>{ if (fi.files[0]) setFile(fi.files[0]); });
+
+function setFile(f) {
+  file = f;
+  fname.textContent = f.name;
+  fsize.textContent = fmtB(f.size)+' · '+f.type;
+  fprev.classList.add('on');
+  vsrc.src = URL.createObjectURL(f);
+  vprev.style.display = 'block';
+  fileReady = true;
+  syncBtn();
+  log('Loaded: '+f.name, 'ok');
+}
+
+// ── Load FFmpeg ───────────────────────────────────────────────────────────────
+window.loadFFmpeg = async function() {
+  engineReady = false;
+  retrybtn.style.display = 'none';
+  setEngineState('loading', 'Loading FFmpeg Engine…', 'Downloading WASM core (~5 MB). Stay on this page.');
+  syncBtn();
+
+  try {
+    // Check SAB
+    if (typeof SharedArrayBuffer === 'undefined') {
+      throw new Error('SharedArrayBuffer unavailable. Open via HTTPS or localhost (not file://).');
+    }
+
+    setEngineState('loading', 'Importing modules…', 'Fetching FFmpeg + util packages from CDN…');
+    const [fmod, umod] = await Promise.all([ import(U_FFMPEG), import(U_UTIL) ]);
+    fetchFile  = umod.fetchFile;
+    toBlobURL  = umod.toBlobURL;
+
+    const { FFmpeg } = fmod;
+    ffmpeg = new FFmpeg();
+
+    ffmpeg.on('log', ({message}) => {
+      const m = message.match(/time=(\d+):(\d+):([\d.]+)/);
+      if (m) {
+        const s = +m[1]*3600 + +m[2]*60 + parseFloat(m[3]);
+        const dur = vsrc.duration || 0;
+        if (dur > 0) prog(Math.min(93, s/dur*100), `Interpolating… ${s.toFixed(1)}s / ${dur.toFixed(1)}s`);
+      }
+    });
+
+    ffmpeg.on('progress', ({progress}) => {
+      if (progress > 0) prog(Math.min(93, progress*100), `Processing… ${Math.round(progress*100)}%`);
+    });
+
+    setEngineState('loading', 'Loading WASM binary…', 'Almost ready — compiling WebAssembly…');
+    await ffmpeg.load({
+      coreURL: await toBlobURL(U_CORE, 'text/javascript'),
+      wasmURL: await toBlobURL(U_WASM, 'application/wasm'),
+    });
+
+    engineReady = true;
+    setEngineState('ok', 'Engine Ready ✓', 'FFmpeg.wasm loaded — select a video and tap Generate.');
+    syncBtn();
+
+  } catch(e) {
+    console.error(e);
+    setEngineState('err', 'Engine Failed to Load', e.message);
+    syncBtn();
+  }
+};
+
+// ── Process ───────────────────────────────────────────────────────────────────
+gobtn.addEventListener('click', async () => {
+  if (!file || !engineReady || running) return;
+
+  const fps   = parseInt(document.getElementById('fps').value);
+  const speed = parseFloat(document.getElementById('spd').value);
+
+  running = true;
+  syncBtn();
+  dlsec.style.display = 'none';
+  rstbtn.classList.remove('on');
+  progsec.style.display = 'block';
+  slog.innerHTML = '';
+  prog(0, 'Starting interpolation pipeline…');
+
+  try {
+    if (!vsrc.duration || !isFinite(vsrc.duration)) {
+      await new Promise(r => vsrc.addEventListener('loadedmetadata', r, {once:true}));
+    }
+    log(`Duration: ${vsrc.duration.toFixed(2)}s | Size: ${fmtB(file.size)}`, 'a');
+
+    const ext  = (file.name.split('.').pop()||'mp4').toLowerCase();
+    const inN  = `input.${ext}`;
+    const outN = 'output.mp4';
+
+    log('Writing to WASM virtual filesystem…', 'a');
+    await ffmpeg.writeFile(inN, await fetchFile(file));
+    prog(7, 'File ready — building filter graph…');
+
+    let vf = `minterpolate=fps=${fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1`;
+    if (speed !== 1.0) vf += `,setpts=${(1/speed).toFixed(6)}*PTS`;
+    log('vf: '+vf, 'a');
+    prog(10, 'Launching encoder…');
+
+    await ffmpeg.exec([
+      '-i', inN, '-vf', vf,
+      '-c:v', 'libx264', '-preset', 'fast',
+      '-crf', '18', '-pix_fmt', 'yuv420p',
+      '-an', '-movflags', '+faststart', outN
+    ]);
+
+    prog(96, 'Encoding done — reading output…');
+    const data = await ffmpeg.readFile(outN);
+    const blob = new Blob([data.buffer], {type:'video/mp4'});
+    if (outURL) URL.revokeObjectURL(outURL);
+    outURL = URL.createObjectURL(blob);
+    dlbtn.href     = outURL;
+    dlbtn.download = `twixtor_${fps}fps_slowmo.mp4`;
+    try { await ffmpeg.deleteFile(inN);  } catch(_){}
+    try { await ffmpeg.deleteFile(outN); } catch(_){}
+
+    prog(100, `Done! Output: ${fmtB(blob.size)} — tap Download below`);
+    dlsec.style.display = 'block';
+    rstbtn.classList.add('on');
+
+  } catch(e) {
+    log('Error: '+e.message, 'er');
+    console.error(e);
+    prog(0, 'Failed — see log above');
+  }
+
+  running = false;
+  syncBtn();
+});
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+rstbtn.addEventListener('click', () => {
+  file = null; fileReady = false;
+  fi.value = '';
+  fprev.classList.remove('on');
+  vprev.style.display = 'none';
+  vsrc.src = '';
+  fname.textContent = '—'; fsize.textContent = '—';
+  progsec.style.display = 'none';
+  dlsec.style.display = 'none';
+  rstbtn.classList.remove('on');
+  slog.innerHTML = '<div class="ll">Ready.</div>';
+  pfill.style.width='0%'; ppct.textContent='0%';
+  if (outURL) { URL.revokeObjectURL(outURL); outURL=null; }
+  syncBtn();
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+syncBtn();
+loadFFmpeg();
+</script>
+</body>
+</html>
